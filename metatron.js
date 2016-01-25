@@ -89,6 +89,7 @@ metatron.Listener = function(tag) {
   this.votes_ = 0;
   this.lastValue_ = 0;
   this.state_ = metatron.Listener.STATE_.WAIT_TAG;
+  this.parts_ = [];
 
   this.tag_ = [];
   for (var i = 0; i < tag.length; i++) {
@@ -96,7 +97,6 @@ metatron.Listener = function(tag) {
     this.tag_.push(chr >> 4);
     this.tag_.push(chr % 16);
   }
-  this.tagBuffer_ = [];
 
   navigator.getUserMedia({
     "audio": {
@@ -227,53 +227,50 @@ metatron.Listener.prototype.onValue_ = function(value) {
   this.lastValue_ = value;
 
   console.log(realValue);
+  this.parts_.push(realValue);
 
   switch (this.state_) {
     case metatron.Listener.STATE_.WAIT_TAG:
-      this.tagBuffer_.push(realValue);
-      if (this.tagBuffer_.length > this.tag_.length) {
-        this.tagBuffer_.shift();
+      if (this.parts_.length > this.tag_.length) {
+        this.parts_.shift();
       }
 
-      if (this.tag_.equals(this.tagBuffer_)) {
+      if (this.tag_.equals(this.parts_)) {
         console.log('tag seen!');
         this.state_ = metatron.Listener.STATE_.WAIT_LENGTH;
-        this.lengthParts_ = [];
+        this.parts_ = [];
       }
       break;
 
     case metatron.Listener.STATE_.WAIT_LENGTH:
-      this.lengthParts_.push(realValue);
-      if (this.lengthParts_.length == 2) {
+      if (this.parts_.length == 2) {
         this.length_ = 0;
-        this.lengthParts_.forEach(function(part) {
+        this.parts_.forEach(function(part) {
           this.length_ <<= 4;
           this.length_ += part;
         }.bind(this));
-        this.contentsParts_ = [];
+        this.parts_ = [];
         this.state_ = metatron.Listener.STATE_.WAIT_CONTENTS;
       }
       break;
 
     case metatron.Listener.STATE_.WAIT_CONTENTS:
-      this.contentsParts_.push(realValue);
-      if (this.contentsParts_.length == this.length_ * 2) {
+      if (this.parts_.length == this.length_ * 2) {
         var chrs = [];
-        for (i = 0; i < this.contentsParts_.length; i += 2) {
-          chrs.push(String.fromCharCode((this.contentsParts_[i] << 4)
-                                        + this.contentsParts_[i + 1]));
+        for (i = 0; i < this.parts_.length; i += 2) {
+          chrs.push(String.fromCharCode((this.parts_[i] << 4)
+                                        + this.parts_[i + 1]));
         }
         this.contents_ = chrs.join('');
-        this.checksumParts_ = [];
+        this.parts_ = [];
         this.state_ = metatron.Listener.STATE_.WAIT_CHECKSUM;
       }
       break;
 
     case metatron.Listener.STATE_.WAIT_CHECKSUM:
-      this.checksumParts_.push(realValue);
-      if (this.checksumParts_.length == 2) {
+      if (this.parts_.length == 2) {
         var checksum = 0;
-        this.checksumParts_.forEach(function(part) {
+        this.parts_.forEach(function(part) {
           checksum <<= 4;
           checksum += part;
         }.bind(this));
@@ -284,6 +281,7 @@ metatron.Listener.prototype.onValue_ = function(value) {
           console.log('corrupted message');
         }
         this.state_ = metatron.Listener.STATE_.WAIT_TAG;
+        this.parts_ = [];
       }
       break;
   }
