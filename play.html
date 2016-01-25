@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <script src="metatron.js" charset="UTF-8"></script>
+  </head>
+  <body>
+    <input id="value" type="text">
+    <input id="submit" type="button" value="Send">
+    <script>
+window.addEventListener('load', function() {
+  var gen = new metatron.Generator('test');
+  document.getElementById('submit').addEventListener('click', function() {
+    gen.play(document.getElementById('value').value);
+  });
+});
+    </script>
+  </body>
+</html>
