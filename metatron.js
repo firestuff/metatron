@@ -238,15 +238,15 @@ metatron.Listener.prototype.onValue_ = function(value) {
       if (this.tag_.equals(this.tagBuffer_)) {
         console.log('tag seen!');
         this.state_ = metatron.Listener.STATE_.WAIT_LENGTH;
-        this.lengthBuffer_ = [];
+        this.lengthParts_ = [];
       }
       break;
 
     case metatron.Listener.STATE_.WAIT_LENGTH:
-      this.lengthBuffer_.push(realValue);
-      if (this.lengthBuffer_.length == 2) {
+      this.lengthParts_.push(realValue);
+      if (this.lengthParts_.length == 2) {
         this.length_ = 0;
-        this.lengthBuffer_.forEach(function(part) {
+        this.lengthParts_.forEach(function(part) {
           this.length_ <<= 4;
           this.length_ += part;
         }.bind(this));
