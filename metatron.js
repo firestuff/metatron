@@ -153,14 +153,10 @@ metatron.Listener.STATE_ = {
 metatron.Listener.prototype.currentValue_ = function() {
   this.analyser_.getByteFrequencyData(this.buffer_);
   var values = [];
-  var minValue = 255;
-  this.fftIndices_.forEach(function(index) {
-    minValue = Math.min(minValue, this.buffer_[index.index]);
-  }.bind(this));
   this.fftIndices_.forEach(function(index) {
     values.push({
       freq: index.freq,
-      value: this.buffer_[index.index] - minValue,
+      value: this.buffer_[index.index],
     });
   }.bind(this));
   values.sort(function(a, b) {
