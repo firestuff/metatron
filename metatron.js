@@ -98,6 +98,21 @@ metatron.Listener = function(tag) {
     this.tag_.push(chr % 16);
   }
 
+  var hzPerBucket = this.context_.sampleRate / metatron.FFT_SIZE;
+  this.freqs_ = [];
+  var multiplier = 1;
+  metatron.FREQS.forEach(function(freqSet) {
+    var setCopy = [];
+    this.freqs_.push(setCopy);
+    freqSet.forEach(function(freq, freqIndex) {
+      setCopy.push({
+        fftIndex: Math.round(freq / hzPerBucket),
+        value: freqIndex * multiplier,
+      });
+    }.bind(this));
+    multiplier *= freqSet.length;
+  }.bind(this));
+
   navigator.getUserMedia({
     "audio": {
       "mandatory": {
@@ -110,29 +125,15 @@ metatron.Listener = function(tag) {
     }
   },
   function(stream) {
-    var sampleRate = this.context_.sampleRate;
-
     this.analyser_ = this.context_.createAnalyser();
     this.analyser_.fftSize = metatron.FFT_SIZE;
     this.analyser_.smoothingTimeConstant = 0.0;
 
-    this.bufSize_ = this.analyser_.frequencyBinCount;
-    this.buffer_ = new Uint8Array(this.bufSize_);
+    this.buffer_ = new Uint8Array(this.analyser_.frequencyBinCount);
 
     var streamSource = this.context_.createMediaStreamSource(stream);
     streamSource.connect(this.analyser_);
     
-    var hzPerBucket = sampleRate / metatron.FFT_SIZE;
-    this.fftIndices_ = [];
-    metatron.FREQS.forEach(function(freqSet) {
-      freqSet.forEach(function(freq) {
-        this.fftIndices_.push({
-          index: Math.round(freq / hzPerBucket),
-          freq: freq,
-        });
-      }.bind(this));
-    }.bind(this));
-
     var interval = metatron.MARK_SECONDS / metatron.CYCLES_PER_MARK * 1000;
     console.log('Poll interval:', interval, 'ms');
     window.setInterval(this.analyse_.bind(this), interval);
@@ -152,39 +153,21 @@ metatron.Listener.STATE_ = {
 
 metatron.Listener.prototype.currentValue_ = function() {
   this.analyser_.getByteFrequencyData(this.buffer_);
-  var values = [];
-  this.fftIndices_.forEach(function(index) {
-    values.push({
-      freq: index.freq,
-      value: this.buffer_[index.index],
-    });
-  }.bind(this));
-  values.sort(function(a, b) {
-    return b.value - a.value;
-  });
-
-  var activeValues = values.slice(0, metatron.FREQS.length);
   var outputValue = 0;
-  var error = false;
-  activeValues.forEach(function(value) {
-    var multiplier = 1, found = 0;
-    metatron.FREQS.forEach(function(freqSet) {
-      var index = freqSet.indexOf(value.freq);
-      if (index >= 0) {
-        found++;
-        outputValue += index * multiplier;
-      }
-      multiplier *= freqSet.length;
-    }.bind(this));
-    if (found != 1) {
-      error = true;
-      console.log('Wrong number of tones matched:', found, activeValues);
+  this.freqs_.forEach(function(freqSet) {
+    var topFreq = {
+      level: null,
+      value: null,
     }
+    freqSet.forEach(function(freq) {
+      var level = this.buffer_[freq.fftIndex];
+      if (level > topFreq.level) {
+        topFreq.level = level;
+        topFreq.value = freq.value;
+      }
+    }.bind(this));
+    outputValue += topFreq.value;
   }.bind(this));
-
-  if (error) {
-    return null;
-  }
 
   return outputValue;
 };
@@ -192,10 +175,6 @@ metatron.Listener.prototype.currentValue_ = function() {
 
 metatron.Listener.prototype.analyse_ = function() {
   var newValue = this.currentValue_();
-
-  if (newValue === null) {
-    return;
-  }
 
   if (newValue === this.activeValue_) {
     this.votes_ = 0;
